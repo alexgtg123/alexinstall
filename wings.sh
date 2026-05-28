@@ -1,30 +1,33 @@
 #!/bin/bash
 
-# ==========================================
-# AUTO CONFIG WINGS - PTERODACTYL
-# Cara pakai:
-# bash <(curl -s https://raw.githubusercontent.com/USER/REPO/main/wings.sh)
-# ==========================================
+apt update && apt upgrade -y
 
-echo "Mengambil konfigurasi otomatis untuk Wings..."
+curl -sSL https://get.docker.com/ | CHANNEL=stable bash
 
-cd /var/www/pterodactyl || { echo "❌ Direktori panel tidak ditemukan"; exit 1; }
+systemctl enable docker
+systemctl start docker
+
+mkdir -p /etc/pterodactyl
+
+curl -L -o /usr/local/bin/wings "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64"
+
+chmod u+x /usr/local/bin/wings
+
+curl -o /etc/systemd/system/wings.service https://raw.githubusercontent.com/pterodactyl/wings/master/wings.service
+
+cd /var/www/pterodactyl || {
+  echo "Panel tidak ditemukan"
+  exit 1
+}
 
 NODE_ID=$(php artisan tinker --execute="echo optional(\Pterodactyl\Models\Node::latest()->first())->id;" | grep -E '^[0-9]+$' | tail -n 1)
 
 if [ -z "$NODE_ID" ]; then
-    echo "❌ Gagal mendapatkan Node ID dari database."
-    echo "⚠️ Silakan konfigurasi Wings secara manual."
-    exit 1
+  echo "Gagal mendapatkan Node ID"
+  exit 1
 fi
 
-echo "✅ Node ID terdeteksi: $NODE_ID"
-echo "Membuat file konfigurasi Wings..."
-
-mkdir -p /etc/pterodactyl
 php artisan p:node:configuration $NODE_ID > /etc/pterodactyl/config.yml
-
-echo "Menyalakan Wings..."
 
 systemctl daemon-reexec
 systemctl daemon-reload
@@ -39,12 +42,8 @@ echo "STATUS WINGS"
 echo "=============================="
 
 if systemctl is-active --quiet wings; then
-    echo -e "\e[1;32m[SUKSES] Wings berhasil dikonfigurasi dan ONLINE!\e[0m"
+    echo "[SUKSES] Wings berhasil ONLINE!"
 else
-    echo -e "\e[1;31m[WARNING] Wings gagal start otomatis.\e[0m"
-    echo "Cek dengan perintah:"
-    echo "systemctl status wings"
+    echo "[ERROR] Wings gagal start"
+    systemctl status wings
 fi
-
-echo ""
-echo "Konfigurasi Wings selesai."
