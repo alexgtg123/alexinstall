@@ -1,49 +1,63 @@
 #!/bin/bash
 
+cd /var/www/pterodactyl || {
+  echo "Panel tidak ditemukan"
+  exit 1
+}
 
-# Minta input dari pengguna.
-echo "Masukkan nama lokasi: "
-read location_name
-echo "Masukkan deskripsi lokasi: "
-read location_description
-echo "Masukkan domain: "
-read domain
-echo "Masukkan nama node: "
-read node_name
-echo "Masukkan RAM (dalam MB): "
-read ram
-echo "Masukkan jumlah maksimum disk space (dalam MB): "
-read disk_space
-echo "Masukkan Locid: "
-read locid
+LOCATION_NAME="NODE BY ALICIA"
+LOCATION_DESC="Jangan Lupa Dukung Alicia Ku🗿"
 
-# Ubah ke direktori pterodactyl
-cd /var/www/pterodactyl || { echo "Direktori tidak ditemukan"; exit 1; }
+NODE_NAME="NODE BY ALICIA"
+DOMAIN="node.domain.com"
 
-# Membuat lokasi baru
+RAM="4096"
+DISK="4096"
+LOCATION_ID="1"
+
 php artisan p:location:make <<EOF
-$location_name
-$location_description
+$LOCATION_NAME
+$LOCATION_DESC
 EOF
 
-# Membuat node baru
 php artisan p:node:make <<EOF
-$node_name
-$location_description
-$locid
+$NODE_NAME
+$LOCATION_DESC
+$LOCATION_ID
 https
-$domain
+$DOMAIN
 yes
 no
 no
-$ram
-$ram
-$disk_space
-$disk_space
+$RAM
+$RAM
+$DISK
+$DISK
 100
 8080
 2022
 /var/lib/pterodactyl/volumes
 EOF
 
-echo "Proses pembuatan lokasi dan node telah selesai."
+NODE_ID=$(php artisan tinker --execute="echo optional(\Pterodactyl\Models\Node::latest()->first())->id;" | grep -E '^[0-9]+$' | tail -n 1)
+
+if [ -z "$NODE_ID" ]; then
+  echo "Gagal mendapatkan Node ID"
+  exit 1
+fi
+
+php artisan p:allocation:make <<EOF
+$NODE_ID
+0.0.0.0
+25565-25600
+EOF
+
+echo "=================================="
+echo "CREATE NODE BERHASIL"
+echo "=================================="
+echo "Location : $LOCATION_NAME"
+echo "Node ID  : $NODE_ID"
+echo "Domain   : $DOMAIN"
+echo "RAM      : $RAM"
+echo "Disk     : $DISK"
+echo "=================================="
