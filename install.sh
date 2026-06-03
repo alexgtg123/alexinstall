@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # ============================================================
-#   AUTO INSTALLER - Pterodactyl Panel + Node + Bot SC
-#   By: Owner Setup Script
+#   AUTO INSTALLER - Pterodactyl Panel + Node
+#   By: Alex
 # ============================================================
 
 RED='\033[0;31m'
@@ -13,8 +13,8 @@ NC='\033[0m'
 
 echo -e "${CYAN}"
 echo "╔══════════════════════════════════════════╗"
-echo "║     PTERODACTYL AUTO INSTALLER v1.0      ║"
-echo "║         Panel + Wings + Bot SC           ║"
+echo "║     PTERODACTYL AUTO INSTALLER v2.0      ║"
+echo "║           Panel + Wings + Node           ║"
 echo "╚══════════════════════════════════════════╝"
 echo -e "${NC}"
 
@@ -24,19 +24,50 @@ if [ "$EUID" -ne 0 ]; then
   exit 1
 fi
 
-# ─── Input dari user ────────────────────────────────────────
-read -p "$(echo -e ${YELLOW}[?] Masukkan domain panel \(contoh: panel.domain.com\): ${NC})" PANEL_DOMAIN
-read -p "$(echo -e ${YELLOW}[?] Masukkan email admin panel: ${NC})" ADMIN_EMAIL
-read -s -p "$(echo -e ${YELLOW}[?] Masukkan password admin panel: ${NC})" ADMIN_PASS
-echo ""
-read -p "$(echo -e ${YELLOW}[?] Masukkan IP VPS ini: ${NC})" VPS_IP
-read -p "$(echo -e ${YELLOW}[?] Masukkan nama node \(contoh: Node-ID-1\): ${NC})" NODE_NAME
-read -p "$(echo -e ${YELLOW}[?] Masukkan domain/subdomain node \(contoh: node1.domain.com\): ${NC})" NODE_DOMAIN
-read -p "$(echo -e ${YELLOW}[?] RAM VPS tersedia untuk node \(MB, contoh: 4096\): ${NC})" NODE_RAM
-read -p "$(echo -e ${YELLOW}[?] Disk VPS tersedia untuk node \(MB, contoh: 20480\): ${NC})" NODE_DISK
-read -p "$(echo -e ${YELLOW}[?] Port allocation awal \(contoh: 25565\): ${NC})" ALLOC_PORT_START
-read -p "$(echo -e ${YELLOW}[?] Port allocation akhir \(contoh: 25665\): ${NC})" ALLOC_PORT_END
+# ─── Ambil argumen (dikirim dari bot via SSH) ────────────────
+# Usage: bash install.sh auto "panel.com" "email" "pass" "ip" "Node-1" "node.com" "4096" "20480" "25565" "25665"
+MODE="$1"
 
+if [ "$MODE" = "auto" ]; then
+  PANEL_DOMAIN="$2"
+  ADMIN_EMAIL="$3"
+  ADMIN_PASS="$4"
+  VPS_IP="$5"
+  NODE_NAME="$6"
+  NODE_DOMAIN="$7"
+  NODE_RAM="$8"
+  NODE_DISK="$9"
+  ALLOC_PORT_START="${10}"
+  ALLOC_PORT_END="${11}"
+
+  echo -e "${CYAN}[AUTO MODE] Menggunakan parameter dari bot...${NC}"
+else
+  # ─── Mode manual: input interaktif ──────────────────────────
+  read -p "$(echo -e ${YELLOW}[?] Domain panel \(contoh: panel.domain.com\): ${NC})" PANEL_DOMAIN
+  read -p "$(echo -e ${YELLOW}[?] Email admin panel: ${NC})" ADMIN_EMAIL
+  read -p "$(echo -e ${YELLOW}[?] Password admin panel: ${NC})" ADMIN_PASS
+  read -p "$(echo -e ${YELLOW}[?] IP VPS ini: ${NC})" VPS_IP
+  read -p "$(echo -e ${YELLOW}[?] Nama node \(contoh: Node-ID-1\): ${NC})" NODE_NAME
+  read -p "$(echo -e ${YELLOW}[?] Domain node \(contoh: node1.domain.com\): ${NC})" NODE_DOMAIN
+  read -p "$(echo -e ${YELLOW}[?] RAM untuk node \(MB, contoh: 4096\): ${NC})" NODE_RAM
+  read -p "$(echo -e ${YELLOW}[?] Disk untuk node \(MB, contoh: 20480\): ${NC})" NODE_DISK
+  read -p "$(echo -e ${YELLOW}[?] Port allocation awal \(contoh: 25565\): ${NC})" ALLOC_PORT_START
+  read -p "$(echo -e ${YELLOW}[?] Port allocation akhir \(contoh: 25665\): ${NC})" ALLOC_PORT_END
+fi
+
+# ─── Validasi parameter ──────────────────────────────────────
+if [ -z "$PANEL_DOMAIN" ] || [ -z "$ADMIN_EMAIL" ] || [ -z "$ADMIN_PASS" ] || [ -z "$VPS_IP" ]; then
+  echo -e "${RED}[ERROR] Parameter tidak lengkap!${NC}"
+  exit 1
+fi
+
+echo ""
+echo -e "${CYAN}[INFO] Konfigurasi:"
+echo -e "  Panel   : ${PANEL_DOMAIN}"
+echo -e "  Node    : ${NODE_DOMAIN}"
+echo -e "  IP VPS  : ${VPS_IP}"
+echo -e "  RAM     : ${NODE_RAM} MB"
+echo -e "  Disk    : ${NODE_DISK} MB${NC}"
 echo ""
 echo -e "${CYAN}[INFO] Memulai instalasi...${NC}"
 sleep 2
@@ -44,47 +75,45 @@ sleep 2
 # ════════════════════════════════════════════════════════════
 #  STEP 1 — UPDATE & DEPENDENCY
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[1/8] Update sistem & install dependency...${NC}"
+echo -e "${GREEN}[1/7] Update sistem & install dependency...${NC}"
+export DEBIAN_FRONTEND=noninteractive
 apt -y update && apt -y upgrade
 apt -y install curl wget git tar unzip software-properties-common \
   apt-transport-https ca-certificates gnupg2 lsb-release \
   nginx certbot python3-certbot-nginx mariadb-server redis-server \
   php8.1 php8.1-cli php8.1-fpm php8.1-mysql php8.1-mbstring \
   php8.1-bcmath php8.1-xml php8.1-curl php8.1-zip php8.1-gd \
-  php8.1-intl composer nodejs npm jq
+  php8.1-intl composer jq
 
 # ════════════════════════════════════════════════════════════
-#  STEP 2 — INSTALL NODE.JS (LTS via NodeSource)
+#  STEP 2 — INSTALL NODE.JS LTS
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[2/8] Install Node.js LTS (hijau/stable)...${NC}"
+echo -e "${GREEN}[2/7] Install Node.js LTS...${NC}"
 curl -fsSL https://deb.nodesource.com/setup_lts.x | bash -
 apt -y install nodejs
-echo -e "${CYAN}    Node.js version: $(node -v)${NC}"
-echo -e "${CYAN}    NPM version    : $(npm -v)${NC}"
+echo -e "${CYAN}    Node.js: $(node -v) | NPM: $(npm -v)${NC}"
 
 # ════════════════════════════════════════════════════════════
 #  STEP 3 — SETUP DATABASE
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[3/8] Setup MariaDB untuk Pterodactyl...${NC}"
+echo -e "${GREEN}[3/7] Setup MariaDB...${NC}"
 systemctl enable mariadb && systemctl start mariadb
 
 DB_PASS=$(openssl rand -base64 16 | tr -dc 'a-zA-Z0-9' | head -c 20)
 
-mysql -u root <<EOF
+mysql -u root <<SQLEOF
 CREATE DATABASE IF NOT EXISTS panel;
 CREATE USER IF NOT EXISTS 'pterodactyl'@'127.0.0.1' IDENTIFIED BY '${DB_PASS}';
 GRANT ALL PRIVILEGES ON panel.* TO 'pterodactyl'@'127.0.0.1';
 FLUSH PRIVILEGES;
-EOF
+SQLEOF
 
-echo -e "${CYAN}    DB User : pterodactyl${NC}"
 echo -e "${CYAN}    DB Pass : ${DB_PASS}${NC}"
-echo -e "${CYAN}    DB Name : panel${NC}"
 
 # ════════════════════════════════════════════════════════════
 #  STEP 4 — INSTALL PTERODACTYL PANEL
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[4/8] Download & install Pterodactyl Panel...${NC}"
+echo -e "${GREEN}[4/7] Install Pterodactyl Panel...${NC}"
 mkdir -p /var/www/pterodactyl
 cd /var/www/pterodactyl
 curl -Lo panel.tar.gz https://github.com/pterodactyl/panel/releases/latest/download/panel.tar.gz
@@ -130,8 +159,8 @@ php artisan p:user:make \
 chown -R www-data:www-data /var/www/pterodactyl/
 chmod -R 755 /var/www/pterodactyl/storage /var/www/pterodactyl/bootstrap/cache
 
-# ─── Queue Worker ────────────────────────────────────────────
-cat > /etc/systemd/system/pteroq.service <<EOF
+# Queue Worker
+cat > /etc/systemd/system/pteroq.service <<SVCEOF
 [Unit]
 Description=Pterodactyl Queue Worker
 After=redis-server.service
@@ -147,16 +176,16 @@ RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
-EOF
+SVCEOF
 
 systemctl enable --now pteroq.service
 
 # ════════════════════════════════════════════════════════════
 #  STEP 5 — NGINX + SSL
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[5/8] Konfigurasi Nginx & SSL...${NC}"
+echo -e "${GREEN}[5/7] Konfigurasi Nginx & SSL...${NC}"
 
-cat > /etc/nginx/sites-available/pterodactyl.conf <<EOF
+cat > /etc/nginx/sites-available/pterodactyl.conf <<NGINXEOF
 server {
     listen 80;
     server_name ${PANEL_DOMAIN};
@@ -178,7 +207,6 @@ server {
 
     client_max_body_size 100m;
     client_body_timeout 120s;
-
     sendfile off;
 
     location / {
@@ -205,7 +233,7 @@ server {
         deny all;
     }
 }
-EOF
+NGINXEOF
 
 ln -sf /etc/nginx/sites-available/pterodactyl.conf /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
@@ -214,19 +242,18 @@ certbot --nginx -d "${PANEL_DOMAIN}" --non-interactive --agree-tos -m "${ADMIN_E
 systemctl restart nginx
 
 # ════════════════════════════════════════════════════════════
-#  STEP 6 — INSTALL WINGS (NODE DAEMON)
+#  STEP 6 — INSTALL WINGS
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[6/8] Install Pterodactyl Wings...${NC}"
+echo -e "${GREEN}[6/7] Install Wings...${NC}"
 mkdir -p /etc/pterodactyl
 curl -L -o /usr/local/bin/wings \
   "https://github.com/pterodactyl/wings/releases/latest/download/wings_linux_amd64"
 chmod u+x /usr/local/bin/wings
 
-# Install Docker
 curl -fsSL https://get.docker.com | bash
 systemctl enable --now docker
 
-cat > /etc/systemd/system/wings.service <<EOF
+cat > /etc/systemd/system/wings.service <<WINGSEOF
 [Unit]
 Description=Pterodactyl Wings Daemon
 After=docker.service
@@ -246,30 +273,56 @@ RestartSec=5s
 
 [Install]
 WantedBy=multi-user.target
-EOF
+WINGSEOF
 
 systemctl enable wings
 
 # ════════════════════════════════════════════════════════════
 #  STEP 7 — BUAT NODE + ALLOCATION VIA API
 # ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[7/8] Membuat Node & Allocation otomatis via API...${NC}"
+echo -e "${GREEN}[7/7] Membuat Node & Allocation via API...${NC}"
 
-sleep 5  # tunggu panel siap
+# Tunggu panel benar-benar siap
+sleep 10
 
-# Ambil API key admin
-API_KEY=$(cd /var/www/pterodactyl && php artisan p:api:key:create \
-  --email="${ADMIN_EMAIL}" \
-  --memo="auto-installer" \
-  --no-interaction 2>/dev/null | grep -oP 'ptla_[a-zA-Z0-9]+' | head -1)
+# ✅ FIX: Ambil API key dengan cara yang benar
+# Generate API key via artisan tinker
+API_KEY=$(cd /var/www/pterodactyl && php artisan tinker --no-interaction <<TINKER 2>/dev/null | grep -oP 'ptla_[a-zA-Z0-9]+'
+\$user = \Pterodactyl\Models\User::where('email', '${ADMIN_EMAIL}')->first();
+\$token = \$user->tokens()->create(['name' => 'auto-installer', 'abilities' => ['*']]);
+echo \$token->plainTextToken;
+TINKER
+)
 
-# Ambil location ID (buat default location dulu jika belum ada)
+# Fallback: coba cara lain jika tinker gagal
+if [ -z "$API_KEY" ]; then
+  echo -e "${YELLOW}    Mencoba generate API key cara alternatif...${NC}"
+  API_KEY=$(cd /var/www/pterodactyl && php artisan p:user:make \
+    --email="apibot@internal.local" \
+    --username="apibot" \
+    --name-first="API" \
+    --name-last="Bot" \
+    --password="$(openssl rand -base64 12)" \
+    --admin=1 \
+    --no-interaction 2>/dev/null | grep -oP 'ptla_[a-zA-Z0-9]+' | head -1)
+fi
+
+if [ -z "$API_KEY" ]; then
+  echo -e "${YELLOW}    [WARNING] API key tidak berhasil digenerate otomatis.${NC}"
+  echo -e "${YELLOW}    Buat manual di panel: Admin > Application API > Create${NC}"
+  API_KEY="MANUAL_REQUIRED"
+fi
+
+echo -e "${CYAN}    API Key: ${API_KEY}${NC}"
+
+# Buat location
 LOC_RESP=$(curl -s -X POST "https://${PANEL_DOMAIN}/api/application/locations" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
   -H "Accept: application/json" \
   -d '{"short":"ID","long":"Indonesia"}')
 LOC_ID=$(echo "$LOC_RESP" | jq -r '.attributes.id // 1')
+echo -e "${CYAN}    Location ID: ${LOC_ID}${NC}"
 
 # Buat node
 NODE_RESP=$(curl -s -X POST "https://${PANEL_DOMAIN}/api/application/nodes" \
@@ -290,10 +343,9 @@ NODE_RESP=$(curl -s -X POST "https://${PANEL_DOMAIN}/api/application/nodes" \
     \"daemon_listen\": 8080
   }")
 NODE_ID=$(echo "$NODE_RESP" | jq -r '.attributes.id')
-
 echo -e "${CYAN}    Node ID: ${NODE_ID}${NC}"
 
-# Buat allocation range
+# Buat allocation
 curl -s -X POST "https://${PANEL_DOMAIN}/api/application/nodes/${NODE_ID}/allocations" \
   -H "Authorization: Bearer ${API_KEY}" \
   -H "Content-Type: application/json" \
@@ -302,8 +354,7 @@ curl -s -X POST "https://${PANEL_DOMAIN}/api/application/nodes/${NODE_ID}/alloca
     \"ip\": \"${VPS_IP}\",
     \"ports\": [$(seq -s, ${ALLOC_PORT_START} ${ALLOC_PORT_END})]
   }" > /dev/null
-
-echo -e "${CYAN}    Allocation ${ALLOC_PORT_START}-${ALLOC_PORT_END} berhasil dibuat!${NC}"
+echo -e "${CYAN}    Allocation ${ALLOC_PORT_START}-${ALLOC_PORT_END} dibuat!${NC}"
 
 # Download wings config dari panel
 curl -s "https://${PANEL_DOMAIN}/api/application/nodes/${NODE_ID}/configuration" \
@@ -314,109 +365,35 @@ curl -s "https://${PANEL_DOMAIN}/api/application/nodes/${NODE_ID}/configuration"
 systemctl start wings
 
 # ════════════════════════════════════════════════════════════
-#  STEP 8 — INSTALL EGG PYTHON & NODE.JS
-# ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[8/8] Install Egg Python & Node.js...${NC}"
-
-# Download official eggs dari Pterodactyl
-mkdir -p /tmp/eggs
-cd /tmp/eggs
-
-# Python Generic Egg
-curl -sLO "https://raw.githubusercontent.com/pterodactyl/yolks/master/nodejs/18/Dockerfile"
-curl -sLO "https://github.com/parkervcp/eggs/raw/master/generic/python/egg-generic-python.json"
-curl -sLO "https://github.com/parkervcp/eggs/raw/master/generic/nodejs/egg-generic-node-js.json"
-
-# Import eggs via API
-for EGG_FILE in egg-generic-python.json egg-generic-node-js.json; do
-  if [ -f "$EGG_FILE" ]; then
-    NEST_ID=$(curl -s "https://${PANEL_DOMAIN}/api/application/nests" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Accept: application/json" | jq -r '.data[0].attributes.id // 1')
-
-    curl -s -X POST "https://${PANEL_DOMAIN}/api/application/nests/${NEST_ID}/eggs" \
-      -H "Authorization: Bearer ${API_KEY}" \
-      -H "Content-Type: application/json" \
-      -H "Accept: application/json" \
-      -d @"$EGG_FILE" > /dev/null
-
-    echo -e "${CYAN}    Egg ${EGG_FILE} berhasil diimport!${NC}"
-  fi
-done
-
-# ════════════════════════════════════════════════════════════
-#  STEP 9 — INSTALL BOT SC
-# ════════════════════════════════════════════════════════════
-echo -e "${GREEN}[+] Setup Bot SC Telegram...${NC}"
-
-mkdir -p /opt/pterodactyl-bot
-cd /opt/pterodactyl-bot
-
-# Copy bot files (diasumsikan ada di direktori yang sama dengan install.sh)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-for FILE in config.js alicia.js installer.js main.js package.json; do
-  if [ -f "${SCRIPT_DIR}/${FILE}" ]; then
-    cp "${SCRIPT_DIR}/${FILE}" /opt/pterodactyl-bot/
-    echo -e "${CYAN}    Copied: ${FILE}${NC}"
-  else
-    echo -e "${YELLOW}    [WARNING] ${FILE} tidak ditemukan di ${SCRIPT_DIR}${NC}"
-  fi
-done
-
-npm install
-
-# Buat systemd service untuk bot
-cat > /etc/systemd/system/pterodactyl-bot.service <<EOF
-[Unit]
-Description=Pterodactyl SC Bot
-After=network.target
-
-[Service]
-Type=simple
-User=root
-WorkingDirectory=/opt/pterodactyl-bot
-ExecStart=/usr/bin/node alicia.js
-Restart=always
-RestartSec=10
-Environment=NODE_ENV=production
-
-[Install]
-WantedBy=multi-user.target
-EOF
-
-systemctl enable --now pterodactyl-bot
-
-# ════════════════════════════════════════════════════════════
-#  DONE — TAMPILKAN SUMMARY
+#  DONE
 # ════════════════════════════════════════════════════════════
 echo ""
 echo -e "${GREEN}"
 echo "╔══════════════════════════════════════════════════════════╗"
 echo "║              INSTALASI SELESAI! 🎉                       ║"
 echo "╠══════════════════════════════════════════════════════════╣"
-echo -e "║  Panel URL  : https://${PANEL_DOMAIN}"
-echo -e "║  Admin Email: ${ADMIN_EMAIL}"
-echo -e "║  DB Pass    : ${DB_PASS}"
-echo -e "║  Node ID    : ${NODE_ID}"
-echo -e "║  API Key    : ${API_KEY}"
+printf "║  Panel URL  : https://%-34s║\n" "${PANEL_DOMAIN}"
+printf "║  Username   : %-36s║\n" "admin"
+printf "║  Password   : %-36s║\n" "${ADMIN_PASS}"
+printf "║  DB Pass    : %-36s║\n" "${DB_PASS}"
+printf "║  Node ID    : %-36s║\n" "${NODE_ID}"
+printf "║  API Key    : %-36s║\n" "${API_KEY}"
 echo "╠══════════════════════════════════════════════════════════╣"
-echo "║  PENTING: Simpan info di atas di tempat aman!            ║"
-echo "║  Bot SC berjalan di /opt/pterodactyl-bot                 ║"
-echo "║  Edit /opt/pterodactyl-bot/config.js untuk konfigurasi   ║"
+echo "║  Simpan info di atas di tempat aman!                     ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 
-# Simpan info ke file
-cat > /root/pterodactyl-install-info.txt <<EOF
+# Simpan ke file
+cat > /root/pterodactyl-install-info.txt <<INFOEOF
 === PTERODACTYL INSTALL INFO ===
 Tanggal    : $(date)
 Panel URL  : https://${PANEL_DOMAIN}
-Admin Email: ${ADMIN_EMAIL}
+Username   : admin
+Password   : ${ADMIN_PASS}
+Email      : ${ADMIN_EMAIL}
 DB Pass    : ${DB_PASS}
 Node ID    : ${NODE_ID}
 API Key    : ${API_KEY}
-Bot Dir    : /opt/pterodactyl-bot
-EOF
+INFOEOF
 
 echo -e "${CYAN}Info tersimpan di: /root/pterodactyl-install-info.txt${NC}"
